@@ -2,6 +2,25 @@ import json
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from .models import FileRegistry
+from django.core.management import call_command
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import permission_required
+
+@csrf_exempt
+def login_view(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        user = authenticate(request, username=data['username'], password=data['password'])
+        if user is not None:
+            login(request, user)
+            return JsonResponse({'message': 'Login successful', 'role': 'admin' if user.is_superuser else 'user'})
+        return JsonResponse({'error': 'Invalid credentials'}, status=401)
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+@csrf_exempt
+def logout_view(request):
+    logout(request)
+    return JsonResponse({'message': 'Logged out successfully'})
 
 @csrf_exempt
 def check_hash(request):
@@ -44,7 +63,6 @@ def upload_file(request):
         if FileRegistry.objects.filter(sha256_hash=file_hash).exists():
             return JsonResponse({'error': 'File already exists on server'}, status=409)
 
-        # Save the file and create the database record
         new_record = FileRegistry.objects.create(
             file=uploaded_file,
             sha256_hash=file_hash,
@@ -65,7 +83,6 @@ def upload_file(request):
 def list_files(request):
     """API endpoint to retrieve all files currently in the registry."""
     if request.method == 'GET':
-        # Get all files, newest first
         files = FileRegistry.objects.all().order_by('-uploaded_at')
         
         file_list = []
@@ -82,3 +99,15 @@ def list_files(request):
         return JsonResponse({'files': file_list})
 
     return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+@csrf_exempt
+@permission_required('Hashtool.can_archive', raise_exception=True)
+def trigger_archive(request):
+    """API endpoint to run the archival script programmatically."""
+    if request.method == 'POST':
+        try:
+            call_command('archive_files', days=0)          
+            return JsonResponse({'success': True, 'message': 'Archival process completed successfully.'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)}, status=500)          
+    return JsonResponse({'error': 'Only POST requests allowed'}, status=405)

@@ -1,30 +1,56 @@
 import { useState } from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
 import FileHasher from "./components/FileHasher";
 import FileList from "./components/FileList";
+import Login from "./components/Login";
+import LogoutButton from "./components/LogoutButton";
 
 function App() {
-  const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
-  const handleUploadSuccess = () => {
-    setRefreshTrigger((prev) => prev + 1);
-  };
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-12 flex flex-col gap-10">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-4xl font-bold tracking-tight">
-          Guardian Dashboard
-        </h1>
-        <p className="text-default-500 text-lg">
-          Secure, hash-based deduplication server manager.
-        </p>
-      </div>
+    <Router>
+      <Routes>
+        <Route
+          path="/login"
+          element={<Login onLogin={() => setIsAuthenticated(true)} />}
+        />
 
-      {/* Pass the success function to the uploader */}
-      <FileHasher onUploadSuccess={handleUploadSuccess} />
+        <Route
+          path="/"
+          element={
+            isAuthenticated ? (
+              <div className="max-w-5xl mx-auto px-6 py-12 flex flex-col gap-10">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h1 className="text-4xl font-bold tracking-tight">
+                      Guardian Dashboard
+                    </h1>
+                    <p className="text-default-500 text-lg">
+                      Secure, hash-based deduplication manager.
+                    </p>
+                  </div>
+                  <LogoutButton onLogout={() => setIsAuthenticated(false)} />
+                </div>
 
-      {/* Pass the trigger value to the table */}
-      <FileList refreshTrigger={refreshTrigger} />
-    </div>
+                <FileHasher
+                  onUploadSuccess={() => setRefreshTrigger((prev) => prev + 1)}
+                />
+                <FileList refreshTrigger={refreshTrigger} />
+              </div>
+            ) : (
+              <Navigate to="/login" />
+            )
+          }
+        />
+      </Routes>
+    </Router>
   );
 }
 

@@ -28,6 +28,7 @@ interface FileListProps {
 const FileList: React.FC<FileListProps> = ({ refreshTrigger = 0 }) => {
   const [files, setFiles] = useState<FileRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [isArchiving, setIsArchiving] = useState<boolean>(false);
 
   const fetchFiles = async () => {
     setLoading(true);
@@ -38,6 +39,19 @@ const FileList: React.FC<FileListProps> = ({ refreshTrigger = 0 }) => {
       console.error("Error fetching files:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleArchive = async () => {
+    setIsArchiving(true);
+    try {
+      await axios.post("http://127.0.0.1:8000/api/archive/");
+      fetchFiles();
+    } catch (error) {
+      console.error("Error archiving files:", error);
+      alert("Archival process failed!");
+    } finally {
+      setIsArchiving(false);
     }
   };
 
@@ -62,9 +76,22 @@ const FileList: React.FC<FileListProps> = ({ refreshTrigger = 0 }) => {
             Real-time view of verified files
           </p>
         </div>
-        <Button size="sm" color="default" variant="flat" onPress={fetchFiles}>
-          Refresh Table
-        </Button>
+
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            color="warning"
+            variant="flat"
+            onPress={handleArchive}
+            isLoading={isArchiving}
+          >
+            {isArchiving ? "Archiving..." : "Archive Old Files"}
+          </Button>
+
+          <Button size="sm" color="default" variant="flat" onPress={fetchFiles}>
+            Refresh Table
+          </Button>
+        </div>
       </div>
 
       <Table aria-label="File registry table" className="shadow-md">

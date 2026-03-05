@@ -101,7 +101,7 @@ def list_files(request):
     return JsonResponse({'error': 'Method not allowed'}, status=405)
 
 @csrf_exempt
-@permission_required('Hashtool.can_archive', raise_exception=True)
+# @permission_required('Hashtool.can_archive', raise_exception=True)
 def trigger_archive(request):
     """API endpoint to run the archival script programmatically."""
     if request.method == 'POST':

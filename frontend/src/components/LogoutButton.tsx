@@ -8,7 +8,7 @@ const LogoutButton: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
   const handleLogout = async () => {
     try {
-      await axios.post("http://127.0.0.1:8000/api/logout/");
+      await axios.post("/api/logout/");
       onLogout();
       navigate("/login");
     } catch (error) {

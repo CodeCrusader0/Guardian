@@ -1,5 +1,5 @@
 from django.db import models
-from django.contrib.auth.models import AbstractUser,  Group, Permission
+from django.contrib.auth.models import AbstractUser, Group, Permission
 
 class User(AbstractUser):
     groups = models.ManyToManyField(
@@ -26,6 +26,11 @@ class FileRegistry(models.Model):
     file_size = models.BigIntegerField(help_text="Size in bytes")
     uploaded_at = models.DateTimeField(auto_now_add=True)
     is_archived = models.BooleanField(default=False)
+    
+    class Meta:
+        permissions = [
+            ("can_archive", "Can trigger the archival process"),
+        ]
 
     def __str__(self):
         return f"{self.original_name} ({self.sha256_hash[:8]}...)"

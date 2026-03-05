@@ -56,10 +56,9 @@ const FileHasher: React.FC<FileHasherProps> = ({ onUploadSuccess }) => {
       setHash(generatedHash);
 
       try {
-        const response = await axios.post(
-          "http://127.0.0.1:8000/api/check-hash/",
-          { hash: generatedHash },
-        );
+        const response = await axios.post("/api/check-hash/", {
+          hash: generatedHash,
+        });
         setServerStatus(response.data);
       } catch (error) {
         setServerStatus({ error: "Failed to connect to the server." });
@@ -79,19 +78,15 @@ const FileHasher: React.FC<FileHasherProps> = ({ onUploadSuccess }) => {
     formData.append("hash", hash);
 
     try {
-      const response = await axios.post(
-        "http://127.0.0.1:8000/api/upload/",
-        formData,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-        },
-      );
+      const response = await axios.post("/api/upload/", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
       setUploadMessage(response.data.message);
       setServerStatus({
         exists: true,
         message: "File is now secured on the server.",
       });
-        onUploadSuccess();
+      onUploadSuccess();
     } catch (error: any) {
       setUploadMessage(
         "Upload failed: " + (error.response?.data?.error || "Unknown error"),

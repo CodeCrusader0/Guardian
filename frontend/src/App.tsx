@@ -5,6 +5,12 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
+import axios from "axios";
+
+// Setup Base URL and Credentials globally
+axios.defaults.baseURL = "http://127.0.0.1:8000";
+axios.defaults.withCredentials = true;
+
 import FileHasher from "./components/FileHasher";
 import FileList from "./components/FileList";
 import Login from "./components/Login";

@@ -16,7 +16,7 @@ const Login: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
     setError("");
 
     try {
-      await axios.post("http://127.0.0.1:8000/api/login/", {
+      await axios.post("/api/login/", {
         username,
         password,
       });

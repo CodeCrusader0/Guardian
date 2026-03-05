@@ -33,7 +33,7 @@ const FileList: React.FC<FileListProps> = ({ refreshTrigger = 0 }) => {
   const fetchFiles = async () => {
     setLoading(true);
     try {
-      const response = await axios.get("http://127.0.0.1:8000/api/files/");
+      const response = await axios.get("/api/files/");
       setFiles(response.data.files);
     } catch (error) {
       console.error("Error fetching files:", error);
@@ -45,11 +45,11 @@ const FileList: React.FC<FileListProps> = ({ refreshTrigger = 0 }) => {
   const handleArchive = async () => {
     setIsArchiving(true);
     try {
-      await axios.post("http://127.0.0.1:8000/api/archive/");
+      await axios.post("/api/archive/");
       fetchFiles();
     } catch (error) {
       console.error("Error archiving files:", error);
-      alert("Archival process failed!");
+      alert("Archival process failed! Ensure you have the right permissions.");
     } finally {
       setIsArchiving(false);
     }

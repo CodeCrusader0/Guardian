@@ -11,90 +11,130 @@ import {
   Spinner,
 } from "@heroui/react";
 
-interface ServerStatus {
-  exists?: boolean;
-  message?: string;
-  file_name?: string;
-  uploaded_at?: string;
-  error?: string;
+interface FileState {
+  file: File;
+  hash: string;
+  status:
+    | "pending"
+    | "hashing"
+    | "ready"
+    | "uploading"
+    | "success"
+    | "duplicate"
+    | "error";
+  message: string;
 }
 
-interface FileHasherProps {
-  onUploadSuccess: () => void;
-}
-
-const FileHasher: React.FC<FileHasherProps> = ({ onUploadSuccess }) => {
-  const [file, setFile] = useState<File | null>(null);
-  const [hash, setHash] = useState<string>("");
-  const [loading, setLoading] = useState<boolean>(false);
-  const [serverStatus, setServerStatus] = useState<ServerStatus | null>(null);
-  const [isUploading, setIsUploading] = useState<boolean>(false);
-  const [uploadMessage, setUploadMessage] = useState<string>("");
-
+const FileHasher: React.FC<{ onUploadSuccess: () => void }> = ({
+  onUploadSuccess,
+}) => {
+  const [fileStates, setFileStates] = useState<FileState[]>([]);
+  const [isProcessingBatch, setIsProcessingBatch] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const resetForm = () => {
-    setFile(null);
-    setHash("");
-    setServerStatus(null);
-    setUploadMessage("");
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
-
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      setHash("");
-      setServerStatus(null);
-      setUploadMessage("");
-      setLoading(true);
+    const selectedFiles = Array.from(e.target.files || []);
+    if (!selectedFiles.length) return;
 
-      const generatedHash = await calculateSHA256(selectedFile);
-      setHash(generatedHash);
+    const initialStates: FileState[] = selectedFiles.map((file) => ({
+      file,
+      hash: "",
+      status: "hashing",
+      message: "Generating fingerprint...",
+    }));
 
+    setFileStates((prev) => [...prev, ...initialStates]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    
+    for (const fileState of initialStates) {
+      const generatedHash = await calculateSHA256(fileState.file);
       try {
         const response = await axios.post("/api/check-hash/", {
           hash: generatedHash,
         });
-        setServerStatus(response.data);
-      } catch (error) {
-        setServerStatus({ error: "Failed to connect to the server." });
-      } finally {
-        setLoading(false);
+        setFileStates((prev) =>
+          prev.map((fs) =>
+            fs.file.name === fileState.file.name
+              ? {
+                  ...fs,
+                  hash: generatedHash,
+                  status: response.data.exists ? "duplicate" : "ready",
+                  message: response.data.exists
+                    ? `Duplicate: ${response.data.file_name}`
+                    : "Ready to upload",
+                }
+              : fs,
+          ),
+        );
+      } catch (err) {
+        setFileStates((prev) =>
+          prev.map((fs) =>
+            fs.file.name === fileState.file.name
+              ? { ...fs, status: "error", message: "Network error" }
+              : fs,
+          ),
+        );
       }
     }
   };
 
-  const handleUpload = async () => {
-    if (!file || !hash) return;
-    setIsUploading(true);
-    setUploadMessage("");
+  const handleBatchUpload = async () => {
+    setIsProcessingBatch(true);
+    let uploadedCount = 0;
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("hash", hash);
+    const filesToUpload = fileStates.filter((fs) => fs.status === "ready");
 
-    try {
-      const response = await axios.post("/api/upload/", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      setUploadMessage(response.data.message);
-      setServerStatus({
-        exists: true,
-        message: "File is now secured on the server.",
-      });
-      onUploadSuccess();
-    } catch (error: any) {
-      setUploadMessage(
-        "Upload failed: " + (error.response?.data?.error || "Unknown error"),
+    for (const fs of filesToUpload) {
+      setFileStates((prev) =>
+        prev.map((item) =>
+          item.file.name === fs.file.name
+            ? { ...item, status: "uploading", message: "Uploading..." }
+            : item,
+        ),
       );
-    } finally {
-      setIsUploading(false);
+
+      const formData = new FormData();
+      formData.append("file", fs.file);
+      formData.append("hash", fs.hash);
+
+      try {
+        await axios.post("/api/upload/", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        setFileStates((prev) =>
+          prev.map((item) =>
+            item.file.name === fs.file.name
+              ? { ...item, status: "success", message: "Uploaded successfully" }
+              : item,
+          ),
+        );
+        uploadedCount++;
+      } catch (error: any) {
+        setFileStates((prev) =>
+          prev.map((item) =>
+            item.file.name === fs.file.name
+              ? {
+                  ...item,
+                  status: "error",
+                  message: error.response?.data?.error || "Upload failed",
+                }
+              : item,
+          ),
+        );
+      }
     }
+
+    if (uploadedCount > 0) onUploadSuccess();
+    setIsProcessingBatch(false);
   };
+
+  const clearCompleted = () => {
+    setFileStates((prev) =>
+      prev.filter((fs) => fs.status !== "success" && fs.status !== "duplicate"),
+    );
+  };
+
+  const readyCount = fileStates.filter((fs) => fs.status === "ready").length;
 
   return (
     <Card className="w-full shadow-md">
@@ -102,108 +142,80 @@ const FileHasher: React.FC<FileHasherProps> = ({ onUploadSuccess }) => {
         <div className="flex flex-col">
           <p className="text-xl font-semibold">Pre-Flight Scanner</p>
           <p className="text-small text-default-500">
-            Select a file to generate a fingerprint
+            Select multiple files to analyze and secure.
           </p>
         </div>
       </CardHeader>
       <Divider />
       <CardBody className="px-6 py-6 gap-6">
-        {/* File Input */}
         <div>
           <input
             type="file"
+            multiple
             ref={fileInputRef}
             onChange={handleFileChange}
-            disabled={loading || isUploading}
+            disabled={isProcessingBatch}
             className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 cursor-pointer"
           />
         </div>
 
-        {loading && (
-          <div className="flex items-center gap-3 text-default-500">
-            <Spinner size="sm" color="primary" />
-            <p>Analyzing fingerprint...</p>
-          </div>
-        )}
+        {fileStates.length > 0 && (
+          <div className="flex flex-col gap-3">
+            {fileStates.map((fs, index) => (
+              <div
+                key={index}
+                className="flex items-center justify-between bg-default-50 p-3 rounded-lg border border-default-200"
+              >
+                <div className="flex flex-col truncate w-1/2">
+                  <span className="text-sm font-semibold truncate">
+                    {fs.file.name}
+                  </span>
+                  <span className="text-xs text-default-400 font-mono truncate">
+                    {fs.hash || "Calculating..."}
+                  </span>
+                </div>
+                <div className="w-1/3 text-right">
+                  {fs.status === "hashing" || fs.status === "uploading" ? (
+                    <Spinner size="sm" />
+                  ) : (
+                    <Chip
+                      size="sm"
+                      color={
+                        fs.status === "success"
+                          ? "success"
+                          : fs.status === "duplicate"
+                            ? "warning"
+                            : fs.status === "error"
+                              ? "danger"
+                              : "default"
+                      }
+                      variant="flat"
+                    >
+                      {fs.message}
+                    </Chip>
+                  )}
+                </div>
+              </div>
+            ))}
 
-        {/* Results Area */}
-        {hash && !loading && (
-          <div className="bg-default-50 p-4 rounded-xl flex flex-col gap-4 border border-default-200">
-            <div>
-              <p className="text-sm font-semibold">File Details</p>
-              <p className="text-sm text-default-600">Name: {file?.name}</p>
-              <p className="text-xs text-default-400 font-mono mt-1 break-all">
-                SHA-256: {hash}
-              </p>
+            <div className="flex gap-3 mt-4">
+              <Button
+                color="primary"
+                onPress={handleBatchUpload}
+                isLoading={isProcessingBatch}
+                isDisabled={readyCount === 0}
+              >
+                Upload {readyCount} Ready Files
+              </Button>
+              <Button
+                color="default"
+                variant="flat"
+                onPress={clearCompleted}
+                isDisabled={isProcessingBatch}
+              >
+                Clear Completed/Duplicates
+              </Button>
             </div>
-
-            <Divider />
-
-            {serverStatus?.exists && !uploadMessage ? (
-              <div className="flex flex-col gap-3 items-start">
-                <Chip color="danger" variant="flat" size="lg">
-                  🚨 {serverStatus.message}
-                </Chip>
-                {serverStatus.file_name && (
-                  <p className="text-sm">
-                    Matched File:{" "}
-                    <span className="font-semibold">
-                      {serverStatus.file_name}
-                    </span>
-                  </p>
-                )}
-                <p className="text-xs text-danger-500 font-medium">
-                  Upload blocked to conserve server bandwidth.
-                </p>
-
-                {/* 4. Reset Button for Duplicates */}
-                <Button
-                  size="sm"
-                  color="default"
-                  variant="flat"
-                  onPress={resetForm}
-                  className="mt-2"
-                >
-                  Check Another File
-                </Button>
-              </div>
-            ) : !serverStatus?.exists ? (
-              <div className="flex flex-col gap-4 items-start">
-                <Chip color="success" variant="flat" size="lg">
-                  ✅ {serverStatus?.message}
-                </Chip>
-                <Button
-                  color="primary"
-                  isLoading={isUploading}
-                  onPress={handleUpload}
-                  className="font-semibold shadow-sm"
-                >
-                  Confirm & Upload
-                </Button>
-              </div>
-            ) : null}
-
-            {/* 5. Success State and Reset Button */}
-            {uploadMessage && (
-              <div className="flex flex-col gap-3 items-start mt-2">
-                <Chip
-                  color={
-                    uploadMessage.includes("failed") ? "danger" : "success"
-                  }
-                  variant="dot"
-                >
-                  {uploadMessage}
-                </Chip>
-                <Button
-                  size="sm"
-                  color="primary"
-                  variant="flat"
-                  onPress={resetForm}
-                >
-                  Upload Another File
-                </Button>
-              </div>
-            )}
           </div>
         )}
       </CardBody>

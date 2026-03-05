@@ -19,13 +19,15 @@ interface FileRecord {
   file_size: number;
   uploaded_at: string;
   is_archived: boolean;
+  file_url: string | null;
 }
 
 interface FileListProps {
-  refreshTrigger?: number;
+  refreshTrigger: number;
+  userRole: string;
 }
 
-const FileList: React.FC<FileListProps> = ({ refreshTrigger = 0 }) => {
+const FileList: React.FC<FileListProps> = ({ refreshTrigger, userRole }) => {
   const [files, setFiles] = useState<FileRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [isArchiving, setIsArchiving] = useState<boolean>(false);
@@ -48,7 +50,6 @@ const FileList: React.FC<FileListProps> = ({ refreshTrigger = 0 }) => {
       await axios.post("/api/archive/");
       fetchFiles();
     } catch (error) {
-      console.error("Error archiving files:", error);
       alert("Archival process failed! Ensure you have the right permissions.");
     } finally {
       setIsArchiving(false);
@@ -78,16 +79,18 @@ const FileList: React.FC<FileListProps> = ({ refreshTrigger = 0 }) => {
         </div>
 
         <div className="flex gap-2">
-          <Button
-            size="sm"
-            color="warning"
-            variant="flat"
-            onPress={handleArchive}
-            isLoading={isArchiving}
-          >
-            {isArchiving ? "Archiving..." : "Archive Old Files"}
-          </Button>
-
+          {/* Hide archive button from standard users */}
+          {(userRole === "admin" || userRole === "manager") && (
+            <Button
+              size="sm"
+              color="warning"
+              variant="flat"
+              onPress={handleArchive}
+              isLoading={isArchiving}
+            >
+              {isArchiving ? "Archiving..." : "Archive Old Files"}
+            </Button>
+          )}
           <Button size="sm" color="default" variant="flat" onPress={fetchFiles}>
             Refresh Table
           </Button>
@@ -98,14 +101,13 @@ const FileList: React.FC<FileListProps> = ({ refreshTrigger = 0 }) => {
         <TableHeader>
           <TableColumn>FILENAME</TableColumn>
           <TableColumn>SIZE</TableColumn>
-          <TableColumn>FINGERPRINT (SHA-256)</TableColumn>
-          <TableColumn>UPLOADED</TableColumn>
-          <TableColumn>STATUS</TableColumn>
+          <TableColumn>FINGERPRINT</TableColumn>
+          <TableColumn>STATUS & LINK</TableColumn>
         </TableHeader>
         <TableBody
-          emptyContent={"No files found in the registry."}
+          emptyContent={"No files found."}
           isLoading={loading}
-          loadingContent={<Spinner label="Loading..." />}
+          loadingContent={<Spinner />}
         >
           {files.map((file) => (
             <TableRow key={file.id}>
@@ -115,22 +117,32 @@ const FileList: React.FC<FileListProps> = ({ refreshTrigger = 0 }) => {
               <TableCell>{formatBytes(file.file_size)}</TableCell>
               <TableCell>
                 <code className="text-xs bg-default-100 px-2 py-1 rounded text-default-600">
-                  {file.sha256_hash.substring(0, 20)}...
+                  {file.sha256_hash.substring(0, 16)}...
                 </code>
               </TableCell>
-              <TableCell className="text-default-500">
-                {file.uploaded_at}
-              </TableCell>
               <TableCell>
-                {file.is_archived ? (
-                  <Chip size="sm" color="default" variant="flat">
-                    📦 Archived
-                  </Chip>
-                ) : (
-                  <Chip size="sm" color="success" variant="flat">
-                    🟢 On Server
-                  </Chip>
-                )}
+                <div className="flex gap-3 items-center">
+                  {file.is_archived ? (
+                    <Chip size="sm" color="default" variant="flat">
+                      📦 Archived
+                    </Chip>
+                  ) : (
+                    <Chip size="sm" color="success" variant="flat">
+                      🟢 On Server
+                    </Chip>
+                  )}
+                  {/* View file logic */}
+                  {file.file_url && (
+                    <a
+                      href={`http://127.0.0.1:8000${file.file_url}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary text-sm hover:underline"
+                    >
+                      View
+                    </a>
+                  )}
+                </div>
               </TableCell>
             </TableRow>
           ))}

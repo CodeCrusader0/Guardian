@@ -8,4 +8,7 @@ urlpatterns = [
     path('api/archive/', views.trigger_archive, name='trigger_archive'),
     path('api/login/', views.login_view, name='login'),
     path('api/logout/', views.logout_view, name='logout'),
+    path('api/auth-status/', views.check_auth_status, name='auth_status'),
+    path('api/users/', views.manage_users, name='manage_users'),
+    path('api/users/<int:user_id>/', views.delete_user, name='delete_user'),
 ]

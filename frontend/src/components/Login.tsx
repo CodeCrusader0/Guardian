@@ -3,7 +3,7 @@ import { Card, CardHeader, CardBody, Input, Button, Chip } from "@heroui/react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
-const Login: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
+const Login: React.FC<{ onLogin: (role: string) => void }> = ({ onLogin }) => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -16,11 +16,11 @@ const Login: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
     setError("");
 
     try {
-      await axios.post("/api/login/", {
+      const response = await axios.post("/api/login/", {
         username,
         password,
       });
-      onLogin();
+      onLogin(response.data.role);
       navigate("/");
     } catch (err) {
       setError("Invalid username or password.");
